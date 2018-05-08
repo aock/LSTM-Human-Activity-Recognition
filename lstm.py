@@ -234,23 +234,27 @@ if __name__ == "__main__":
     # Step 3: Let's get serious and build the neural network
     # ------------------------------------------------------
 
-    X = tf.placeholder(tf.float32, [None, config.n_steps, config.n_inputs])
-    Y = tf.placeholder(tf.float32, [None, config.n_classes])
+    with tf.name_scope('input'):
+        X = tf.placeholder(tf.float32, [None, config.n_steps, config.n_inputs], name='inputX')
+        Y = tf.placeholder(tf.float32, [None, config.n_classes], name='inputY')
 
-    pred_Y = LSTM_Network(X, config)
+    with tf.name_scope('pred'):
+        pred_Y = LSTM_Network(X, config)
 
     # Loss,optimizer,evaluation
-    l2 = config.lambda_loss_amount * \
-        sum(tf.nn.l2_loss(tf_var) for tf_var in tf.trainable_variables())
-    # Softmax loss and L2
-    cost = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(labels=Y, logits=pred_Y)) + l2
-    optimizer = tf.train.AdamOptimizer(
-        learning_rate=config.learning_rate).minimize(cost)
+    with tf.name_scope('opti'):
+        l2 = config.lambda_loss_amount * \
+            sum(tf.nn.l2_loss(tf_var) for tf_var in tf.trainable_variables())
+        # Softmax loss and L2
+        cost = tf.reduce_mean(
+            tf.nn.softmax_cross_entropy_with_logits(labels=Y, logits=pred_Y)) + l2
+        optimizer = tf.train.AdamOptimizer(
+            learning_rate=config.learning_rate).minimize(cost)
 
-    correct_pred = tf.equal(tf.argmax(pred_Y, 1), tf.argmax(Y, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_pred, dtype=tf.float32))
+        correct_pred = tf.equal(tf.argmax(pred_Y, 1), tf.argmax(Y, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, dtype=tf.float32))
 
+    
     # --------------------------------------------
     # Step 4: Hooray, now train the neural network
     # --------------------------------------------
@@ -260,8 +264,15 @@ if __name__ == "__main__":
     init = tf.global_variables_initializer()
     sess.run(init)
 
+    for n in tf.get_default_graph().as_graph_def().node:
+        if n.name.startswith('pred'):
+            print(n.name)
+    #[print(n.name) for n in tf.get_default_graph().as_graph_def().node]
+
     best_accuracy = 0.0
     # Start training for each batch and loop epochs
+    saver = tf.train.Saver()
+
     for i in range(config.training_epochs):
         for start, end in zip(range(0, config.train_count, config.batch_size),
                               range(config.batch_size, config.train_count + 1, config.batch_size)):
@@ -285,6 +296,7 @@ if __name__ == "__main__":
     print("final test accuracy: {}".format(accuracy_out))
     print("best epoch's test accuracy: {}".format(best_accuracy))
     print("")
+    saver.save(sess, './HAR_model')
 
     # ------------------------------------------------------------------
     # Step 5: Training is good, but having visual insight is even better
